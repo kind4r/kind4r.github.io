@@ -1,0 +1,478 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IPv4 Class Visualizer</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Inter:wght@300;400;600;800&display=swap');
+        
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #0f172a;
+            color: #e2e8f0;
+        }
+        
+        .mono {
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        /* Custom Scrollbar for aesthetics */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #1e293b; 
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #475569; 
+            border-radius: 4px;
+        }
+
+        .bit-box {
+            transition: all 0.3s ease;
+        }
+        
+        .glow-text {
+            text-shadow: 0 0 10px rgba(99, 102, 241, 0.5);
+        }
+
+        .class-card {
+            transition: transform 0.2s, border-color 0.2s, background-color 0.2s;
+        }
+        
+        .class-card.active {
+            transform: scale(1.05);
+            border-color: #6366f1; /* Indigo 500 */
+            background-color: rgba(99, 102, 241, 0.1);
+            box-shadow: 0 0 20px rgba(99, 102, 241, 0.2);
+        }
+
+        .network-bit {
+            background-color: #ef4444; /* Red-500 */
+            border-color: #b91c1c;
+        }
+        
+        .host-bit {
+            background-color: #22c55e; /* Green-500 */
+            border-color: #15803d;
+        }
+
+        .leading-bit {
+            background-color: #f59e0b; /* Amber-500 */
+            border-color: #b45309;
+            font-weight: bold;
+            color: black;
+        }
+
+        .input-range-custom {
+            -webkit-appearance: none;
+            width: 100%;
+            height: 8px;
+            background: #334155;
+            outline: none;
+            border-radius: 4px;
+        }
+
+        .input-range-custom::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 24px;
+            height: 24px;
+            background: #6366f1;
+            cursor: pointer;
+            border-radius: 50%;
+            box-shadow: 0 0 10px rgba(99, 102, 241, 0.5);
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col items-center py-8 px-4">
+
+    <!-- Header -->
+    <header class="text-center mb-8 max-w-3xl w-full">
+        <h1 class="text-4xl md:text-5xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-indigo-400 to-purple-400 mb-2">IP Class Visualizer</h1>
+        <p class="text-slate-400">Interactive simulation of IPv4 address classes, binary structure, and subnetting logic.</p>
+    </header>
+
+    <!-- Main Dashboard -->
+    <main class="w-full max-w-6xl grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+        <!-- Control Panel -->
+        <div class="lg:col-span-1 bg-slate-800/50 rounded-2xl p-6 border border-slate-700 shadow-xl backdrop-blur-sm h-fit">
+            <h2 class="text-xl font-semibold mb-4 flex items-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-indigo-400" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.532 1.532 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.532 1.532 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z" clip-rule="evenodd" /></svg>
+                Controls
+            </h2>
+
+            <!-- IP Input -->
+            <div class="mb-6">
+                <label class="block text-sm font-medium text-slate-400 mb-2">IP Address</label>
+                <input type="text" id="ipInput" value="192.168.1.1" class="mono w-full bg-slate-900 border border-slate-600 rounded-lg px-4 py-3 text-lg focus:border-indigo-500 focus:outline-none text-center tracking-widest" placeholder="x.x.x.x">
+                <p id="errorMsg" class="text-red-400 text-xs mt-2 hidden">Invalid IP Address</p>
+            </div>
+
+            <!-- Slider -->
+            <div class="mb-8">
+                <label class="block text-sm font-medium text-slate-400 mb-2">First Octet (Class Determinant)</label>
+                <div class="flex items-center justify-between mb-2">
+                    <span class="mono text-xs text-slate-500">1</span>
+                    <span id="sliderValueDisplay" class="mono text-xl font-bold text-indigo-400">192</span>
+                    <span class="mono text-xs text-slate-500">255</span>
+                </div>
+                <input type="range" id="firstOctetSlider" min="1" max="255" value="192" class="input-range-custom">
+            </div>
+
+            <!-- Legend -->
+            <div class="space-y-2 text-sm border-t border-slate-700 pt-4">
+                <p class="font-semibold text-slate-300 mb-2">Legend</p>
+                <div class="flex items-center gap-2">
+                    <div class="w-4 h-4 rounded bg-amber-500 border border-amber-700"></div>
+                    <span class="text-slate-400">Leading Bits (Class ID)</span>
+                </div>
+                <div class="flex items-center gap-2">
+                    <div class="w-4 h-4 rounded bg-red-500 border border-red-700"></div>
+                    <span class="text-slate-400">Network ID</span>
+                </div>
+                <div class="flex items-center gap-2">
+                    <div class="w-4 h-4 rounded bg-green-500 border border-green-700"></div>
+                    <span class="text-slate-400">Host ID</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Visualizer -->
+        <div class="lg:col-span-2 flex flex-col gap-6">
+            
+            <!-- Class Selection Display -->
+            <div class="grid grid-cols-5 gap-2 md:gap-4">
+                <div id="cardA" class="class-card bg-slate-800 border border-slate-700 rounded-xl p-3 text-center cursor-pointer">
+                    <div class="text-2xl font-bold mb-1">A</div>
+                    <div class="text-[10px] text-slate-400">1 - 126</div>
+                </div>
+                <div id="cardB" class="class-card bg-slate-800 border border-slate-700 rounded-xl p-3 text-center cursor-pointer">
+                    <div class="text-2xl font-bold mb-1">B</div>
+                    <div class="text-[10px] text-slate-400">128 - 191</div>
+                </div>
+                <div id="cardC" class="class-card bg-slate-800 border border-slate-700 rounded-xl p-3 text-center cursor-pointer">
+                    <div class="text-2xl font-bold mb-1">C</div>
+                    <div class="text-[10px] text-slate-400">192 - 223</div>
+                </div>
+                <div id="cardD" class="class-card bg-slate-800 border border-slate-700 rounded-xl p-3 text-center cursor-pointer">
+                    <div class="text-2xl font-bold mb-1">D</div>
+                    <div class="text-[10px] text-slate-400">224 - 239</div>
+                </div>
+                <div id="cardE" class="class-card bg-slate-800 border border-slate-700 rounded-xl p-3 text-center cursor-pointer">
+                    <div class="text-2xl font-bold mb-1">E</div>
+                    <div class="text-[10px] text-slate-400">240 - 255</div>
+                </div>
+            </div>
+
+            <!-- Binary Representation -->
+            <div class="bg-slate-900/80 rounded-2xl p-6 border border-slate-700 relative overflow-hidden">
+                <h3 class="text-sm font-semibold text-slate-400 mb-4 uppercase tracking-widest">32-Bit Address Structure</h3>
+                
+                <!-- Octet Labels -->
+                <div class="flex justify-between text-xs text-slate-500 mb-2 px-1">
+                    <span class="w-1/4 text-center">Octet 1</span>
+                    <span class="w-1/4 text-center">Octet 2</span>
+                    <span class="w-1/4 text-center">Octet 3</span>
+                    <span class="w-1/4 text-center">Octet 4</span>
+                </div>
+
+                <!-- Bits Container -->
+                <div class="flex gap-2 md:gap-4 mb-4">
+                    <div id="octet1" class="grid grid-cols-8 gap-0.5 w-1/4"></div>
+                    <div id="octet2" class="grid grid-cols-8 gap-0.5 w-1/4"></div>
+                    <div id="octet3" class="grid grid-cols-8 gap-0.5 w-1/4"></div>
+                    <div id="octet4" class="grid grid-cols-8 gap-0.5 w-1/4"></div>
+                </div>
+                
+                <!-- Decimal Values below bits -->
+                 <div class="flex justify-between text-lg font-bold mono text-indigo-200 px-1">
+                    <span id="dec1" class="w-1/4 text-center">192</span>
+                    <span id="dec2" class="w-1/4 text-center">168</span>
+                    <span id="dec3" class="w-1/4 text-center">1</span>
+                    <span id="dec4" class="w-1/4 text-center">1</span>
+                </div>
+
+                <!-- Structure Bar (N vs H) -->
+                <div class="mt-6 h-4 rounded-full flex overflow-hidden w-full opacity-80">
+                    <div id="barNetwork" class="bg-red-500 h-full transition-all duration-500 flex items-center justify-center text-[10px] font-bold text-black/60" style="width: 75%">NETWORK</div>
+                    <div id="barHost" class="bg-green-500 h-full transition-all duration-500 flex items-center justify-center text-[10px] font-bold text-black/60" style="width: 25%">HOST</div>
+                </div>
+            </div>
+
+            <!-- Details Info Panel -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <!-- Stats -->
+                <div class="bg-slate-800 rounded-xl p-5 border border-slate-700">
+                    <h4 class="text-slate-400 text-xs uppercase tracking-wider mb-3">Class Attributes</h4>
+                    <div class="space-y-3">
+                        <div class="flex justify-between border-b border-slate-700 pb-2">
+                            <span class="text-slate-400">Purpose</span>
+                            <span id="classPurpose" class="font-semibold text-indigo-300">Unicast (Small)</span>
+                        </div>
+                        <div class="flex justify-between border-b border-slate-700 pb-2">
+                            <span class="text-slate-400">Subnet Mask</span>
+                            <span id="subnetMask" class="mono text-slate-200">255.255.255.0</span>
+                        </div>
+                        <div class="flex justify-between border-b border-slate-700 pb-2">
+                            <span class="text-slate-400">CIDR</span>
+                            <span id="cidr" class="mono text-slate-200">/24</span>
+                        </div>
+                         <div class="flex justify-between">
+                            <span class="text-slate-400">High Order Bits</span>
+                            <span id="highBits" class="mono font-bold text-amber-500">110</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Capacity -->
+                <div class="bg-slate-800 rounded-xl p-5 border border-slate-700">
+                    <h4 class="text-slate-400 text-xs uppercase tracking-wider mb-3">Capacity Logic</h4>
+                     <div class="space-y-3">
+                        <div class="flex justify-between border-b border-slate-700 pb-2">
+                            <span class="text-slate-400">Network Bits</span>
+                            <span id="netBitsCount" class="font-mono text-red-400">24</span>
+                        </div>
+                        <div class="flex justify-between border-b border-slate-700 pb-2">
+                            <span class="text-slate-400">Host Bits</span>
+                            <span id="hostBitsCount" class="font-mono text-green-400">8</span>
+                        </div>
+                        <div class="flex justify-between border-b border-slate-700 pb-2">
+                            <span class="text-slate-400">Max Networks</span>
+                            <span id="maxNetworks" class="text-slate-200">2,097,152</span>
+                        </div>
+                         <div class="flex justify-between">
+                            <span class="text-slate-400">Hosts/Network</span>
+                            <span id="maxHosts" class="text-slate-200">254</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Loopback Warning -->
+            <div id="loopbackWarning" class="hidden bg-yellow-900/30 border border-yellow-600/50 text-yellow-200 px-4 py-3 rounded-lg text-sm flex items-start gap-3">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 flex-shrink-0 mt-0.5" viewBox="0 0 20 20" fill="currentColor">
+                    <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd" />
+                </svg>
+                <div>
+                    <span class="font-bold">Loopback Address:</span> The range 127.x.x.x is reserved for loopback testing (localhost) and is technically part of Class A reserved space, but cannot be assigned to a physical network.
+                </div>
+            </div>
+
+        </div>
+    </main>
+
+    <script>
+        // DOM Elements
+        const ipInput = document.getElementById('ipInput');
+        const slider = document.getElementById('firstOctetSlider');
+        const sliderDisplay = document.getElementById('sliderValueDisplay');
+        const errorMsg = document.getElementById('errorMsg');
+        const cards = {
+            A: document.getElementById('cardA'),
+            B: document.getElementById('cardB'),
+            C: document.getElementById('cardC'),
+            D: document.getElementById('cardD'),
+            E: document.getElementById('cardE')
+        };
+        const octetContainers = [
+            document.getElementById('octet1'),
+            document.getElementById('octet2'),
+            document.getElementById('octet3'),
+            document.getElementById('octet4')
+        ];
+        const decDisplays = [
+            document.getElementById('dec1'),
+            document.getElementById('dec2'),
+            document.getElementById('dec3'),
+            document.getElementById('dec4')
+        ];
+
+        // State
+        let currentIP = [192, 168, 1, 1];
+
+        // Initialization
+        updateSimulation();
+
+        // Event Listeners
+        slider.addEventListener('input', (e) => {
+            currentIP[0] = parseInt(e.target.value);
+            ipInput.value = currentIP.join('.');
+            sliderDisplay.innerText = currentIP[0];
+            updateSimulation();
+        });
+
+        ipInput.addEventListener('input', (e) => {
+            const val = e.target.value;
+            const parts = val.split('.');
+            
+            if (isValidIP(val)) {
+                errorMsg.classList.add('hidden');
+                currentIP = parts.map(p => parseInt(p));
+                slider.value = currentIP[0];
+                sliderDisplay.innerText = currentIP[0];
+                updateSimulation();
+            } else {
+                errorMsg.classList.remove('hidden');
+            }
+        });
+        
+        // Allow clicking cards to jump to range
+        document.getElementById('cardA').onclick = () => setFirstOctet(10);
+        document.getElementById('cardB').onclick = () => setFirstOctet(172);
+        document.getElementById('cardC').onclick = () => setFirstOctet(192);
+        document.getElementById('cardD').onclick = () => setFirstOctet(224);
+        document.getElementById('cardE').onclick = () => setFirstOctet(240);
+
+        function setFirstOctet(val) {
+            currentIP[0] = val;
+            slider.value = val;
+            sliderDisplay.innerText = val;
+            ipInput.value = currentIP.join('.');
+            updateSimulation();
+        }
+
+        function isValidIP(ip) {
+            const parts = ip.split('.');
+            if (parts.length !== 4) return false;
+            return parts.every(part => {
+                if (part === "") return false;
+                const num = Number(part);
+                return Number.isInteger(num) && num >= 0 && num <= 255;
+            });
+        }
+
+        function decToBinArr(dec) {
+            return parseInt(dec).toString(2).padStart(8, '0').split('');
+        }
+
+        function updateSimulation() {
+            const firstOctet = currentIP[0];
+            const classData = getClassData(firstOctet);
+            
+            // Update Class Cards
+            Object.values(cards).forEach(c => c.classList.remove('active'));
+            if (cards[classData.type]) cards[classData.type].classList.add('active');
+
+            // Update Decimal Displays
+            decDisplays.forEach((el, idx) => el.innerText = currentIP[idx]);
+
+            // Render Bits
+            renderBits(classData);
+
+            // Update Text Stats
+            document.getElementById('classPurpose').innerText = classData.purpose;
+            document.getElementById('subnetMask').innerText = classData.mask;
+            document.getElementById('cidr').innerText = classData.cidr;
+            document.getElementById('highBits').innerText = classData.leadingBits;
+            
+            // Update Count Stats
+            if (classData.type === 'D' || classData.type === 'E') {
+                document.getElementById('netBitsCount').innerText = "N/A";
+                document.getElementById('hostBitsCount').innerText = "N/A";
+                document.getElementById('maxNetworks').innerText = "N/A";
+                document.getElementById('maxHosts').innerText = "N/A";
+                
+                // Bar Visuals
+                document.getElementById('barNetwork').style.width = '100%';
+                document.getElementById('barNetwork').innerText = classData.type === 'D' ? 'MULTICAST' : 'EXPERIMENTAL';
+                document.getElementById('barHost').style.width = '0%';
+                document.getElementById('barHost').innerText = '';
+            } else {
+                document.getElementById('netBitsCount').innerText = classData.netBits;
+                document.getElementById('hostBitsCount').innerText = classData.hostBits;
+                document.getElementById('maxNetworks').innerText = classData.maxNets;
+                document.getElementById('maxHosts').innerText = classData.maxHosts;
+
+                // Bar Visuals
+                const netPercent = (classData.netBits / 32) * 100;
+                document.getElementById('barNetwork').style.width = `${netPercent}%`;
+                document.getElementById('barNetwork').innerText = 'NETWORK';
+                document.getElementById('barHost').style.width = `${100 - netPercent}%`;
+                document.getElementById('barHost').innerText = 'HOST';
+            }
+
+            // Loopback check
+            const warning = document.getElementById('loopbackWarning');
+            if (firstOctet === 127) {
+                warning.classList.remove('hidden');
+            } else {
+                warning.classList.add('hidden');
+            }
+        }
+
+        function getClassData(octet) {
+            if (octet >= 1 && octet <= 126) return { 
+                type: 'A', leadingBits: '0', mask: '255.0.0.0', cidr: '/8', 
+                netBits: 8, hostBits: 24, purpose: 'Unicast (Large Networks)',
+                maxNets: '126', maxHosts: '16,777,214', leadingLen: 1 
+            };
+            if (octet === 127) return { 
+                type: 'A', leadingBits: '0', mask: 'N/A', cidr: 'N/A', 
+                netBits: 8, hostBits: 24, purpose: 'Loopback (Testing)',
+                maxNets: '1', maxHosts: 'N/A', leadingLen: 1
+            }; // Special case handling visual
+            if (octet >= 128 && octet <= 191) return { 
+                type: 'B', leadingBits: '10', mask: '255.255.0.0', cidr: '/16', 
+                netBits: 16, hostBits: 16, purpose: 'Unicast (Medium Networks)',
+                maxNets: '16,384', maxHosts: '65,534', leadingLen: 2
+            };
+            if (octet >= 192 && octet <= 223) return { 
+                type: 'C', leadingBits: '110', mask: '255.255.255.0', cidr: '/24', 
+                netBits: 24, hostBits: 8, purpose: 'Unicast (Small Networks)',
+                maxNets: '2,097,152', maxHosts: '254', leadingLen: 3
+            };
+            if (octet >= 224 && octet <= 239) return { 
+                type: 'D', leadingBits: '1110', mask: 'N/A', cidr: 'N/A', 
+                netBits: 0, hostBits: 0, purpose: 'Multicast',
+                maxNets: 'N/A', maxHosts: 'N/A', leadingLen: 4
+            };
+            return { 
+                type: 'E', leadingBits: '1111', mask: 'N/A', cidr: 'N/A', 
+                netBits: 0, hostBits: 0, purpose: 'Experimental (R&D)',
+                maxNets: 'N/A', maxHosts: 'N/A', leadingLen: 4
+            };
+        }
+
+        function renderBits(classData) {
+            let globalBitIndex = 0;
+            
+            // Determine network boundary for coloring
+            let netBoundary = 0;
+            if (classData.type === 'A') netBoundary = 8;
+            else if (classData.type === 'B') netBoundary = 16;
+            else if (classData.type === 'C') netBoundary = 24;
+            else netBoundary = 32; // D and E treat all as special/network basically
+
+            octetContainers.forEach((container, octIdx) => {
+                container.innerHTML = '';
+                const bits = decToBinArr(currentIP[octIdx]);
+                
+                bits.forEach((bit, bitIdx) => {
+                    const bitDiv = document.createElement('div');
+                    bitDiv.innerText = bit;
+                    bitDiv.className = `h-8 md:h-10 w-full flex items-center justify-center text-xs md:text-sm font-mono rounded-sm text-white border bit-box `;
+
+                    // Styling Logic
+                    if (globalBitIndex < classData.leadingLen) {
+                        // It's a Class Identifying Bit (Leading Bit)
+                        bitDiv.classList.add('leading-bit');
+                    } else if (globalBitIndex < netBoundary) {
+                        // It's a Network Bit
+                        bitDiv.classList.add('network-bit');
+                    } else {
+                        // It's a Host Bit
+                        bitDiv.classList.add('host-bit');
+                    }
+                    
+                    container.appendChild(bitDiv);
+                    globalBitIndex++;
+                });
+            });
+        }
+    </script>
+</body>
+</html>

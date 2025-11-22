@@ -1,0 +1,644 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TCP vs UDP Visual Simulation</title>
+    <style>
+        :root {
+            --bg-color: #0f172a;
+            --panel-bg: #1e293b;
+            --text-color: #e2e8f0;
+            --accent-tcp: #3b82f6;
+            --accent-udp: #f97316;
+            --success: #22c55e;
+            --danger: #ef4444;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        header {
+            padding: 15px 20px;
+            background-color: var(--panel-bg);
+            border-bottom: 1px solid #334155;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        h1 { margin: 0; font-size: 1.2rem; }
+
+        .main-container {
+            display: flex;
+            flex: 1;
+            height: calc(100vh - 60px);
+        }
+
+        #canvas-container {
+            flex: 2;
+            position: relative;
+            background: radial-gradient(circle at center, #1e293b 0%, #0f172a 100%);
+            overflow: hidden;
+        }
+
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+
+        #controls {
+            flex: 0 0 350px;
+            background-color: var(--panel-bg);
+            padding: 20px;
+            border-left: 1px solid #334155;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            overflow-y: auto;
+            box-shadow: -5px 0 15px rgba(0,0,0,0.3);
+        }
+
+        .control-group {
+            background: rgba(255,255,255,0.05);
+            padding: 15px;
+            border-radius: 8px;
+            border: 1px solid #334155;
+        }
+
+        .control-group h3 {
+            margin-top: 0;
+            font-size: 1rem;
+            color: #94a3b8;
+            margin-bottom: 10px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        button {
+            padding: 10px 16px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.2s;
+            width: 100%;
+            margin-bottom: 8px;
+        }
+
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .btn-tcp { background-color: var(--accent-tcp); color: white; }
+        .btn-tcp:hover:not(:disabled) { background-color: #2563eb; }
+        
+        .btn-udp { background-color: var(--accent-udp); color: white; }
+        .btn-udp:hover:not(:disabled) { background-color: #ea580c; }
+
+        .btn-reset { background-color: #475569; color: white; }
+        .btn-reset:hover { background-color: #334155; }
+
+        label { display: block; margin-bottom: 5px; font-size: 0.9rem; }
+        
+        input[type="range"] {
+            width: 100%;
+            accent-color: var(--danger);
+        }
+
+        #logs {
+            font-family: 'Courier New', monospace;
+            font-size: 0.85rem;
+            height: 300px;
+            overflow-y: auto;
+            background: #000;
+            padding: 10px;
+            border-radius: 6px;
+            border: 1px solid #334155;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .log-entry { opacity: 0.9; border-bottom: 1px solid #222; padding-bottom: 2px; }
+        .log-tcp { color: #60a5fa; }
+        .log-udp { color: #fb923c; }
+        .log-info { color: #94a3b8; }
+        .log-error { color: #f87171; }
+        .log-success { color: #4ade80; }
+
+        .legend {
+            display: flex;
+            gap: 10px;
+            font-size: 0.8rem;
+            margin-top: 5px;
+        }
+        .legend-item { display: flex; align-items: center; gap: 5px; }
+        .dot { width: 10px; height: 10px; border-radius: 50%; }
+
+        @media (max-width: 768px) {
+            .main-container { flex-direction: column; }
+            #controls { flex: 1; border-left: none; border-top: 1px solid #334155; }
+        }
+    </style>
+</head>
+<body>
+
+<header>
+    <h1>Network Protocol Simulator</h1>
+    <div class="legend">
+        <div class="legend-item"><div class="dot" style="background:var(--accent-tcp)"></div>TCP</div>
+        <div class="legend-item"><div class="dot" style="background:var(--accent-udp)"></div>UDP</div>
+        <div class="legend-item"><div class="dot" style="background:var(--success)"></div>ACK</div>
+    </div>
+</header>
+
+<div class="main-container">
+    <div id="canvas-container">
+        <canvas id="simCanvas"></canvas>
+    </div>
+    
+    <div id="controls">
+        <div class="control-group">
+            <h3>Simulation Mode</h3>
+            <button class="btn-tcp" id="startTcpBtn" onclick="startTCP()">Simulate TCP Transfer</button>
+            <button class="btn-udp" id="startUdpBtn" onclick="startUDP()">Simulate UDP Stream</button>
+            <button class="btn-reset" onclick="resetSim()">Reset / Stop</button>
+        </div>
+
+        <div class="control-group">
+            <h3>Network Conditions</h3>
+            <label for="lossRate">Packet Loss Chance: <span id="lossVal">0</span>%</label>
+            <input type="range" id="lossRate" min="0" max="50" value="0" oninput="updateLoss(this.value)">
+            <p style="font-size: 0.8rem; color: #94a3b8; margin-top:5px;">
+                Dragging this up will randomly destroy packets mid-transit.
+            </p>
+        </div>
+
+        <div class="control-group" style="flex:1; display:flex; flex-direction:column;">
+            <h3>Event Log</h3>
+            <div id="logs"></div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // --- Configuration ---
+    const canvas = document.getElementById('simCanvas');
+    const ctx = canvas.getContext('2d');
+    
+    let width, height;
+    let animationId;
+    let lastTime = 0;
+
+    // State
+    let protocol = null; // 'TCP' or 'UDP'
+    let isRunning = false;
+    let lossChance = 0;
+    
+    // TCP State Machine
+    let tcpState = 'CLOSED'; // CLOSED, SYN_SENT, ESTABLISHED, FIN_WAIT
+    let tcpSeq = 0;
+    let tcpAckPending = false;
+    let tcpDataPacketsToSend = 5;
+    let tcpPacketsSent = 0;
+    let tcpPacketsAcked = 0;
+    let tcpRetrying = false;
+    let tcpTimer = null;
+
+    // UDP State
+    let udpPacketsToSend = 20;
+    let udpInterval = null;
+
+    // Entities
+    const client = { x: 100, y: 0, size: 60, label: "CLIENT" };
+    const server = { x: 0, y: 0, size: 60, label: "SERVER" };
+    let packets = [];
+    let particles = []; // For explosions
+
+    // Resize Canvas
+    function resize() {
+        width = canvas.parentElement.clientWidth;
+        height = canvas.parentElement.clientHeight;
+        canvas.width = width;
+        canvas.height = height;
+        
+        client.y = height / 2;
+        server.x = width - 100;
+        server.y = height / 2;
+    }
+    window.addEventListener('resize', resize);
+    resize();
+
+    // --- Classes ---
+
+    class Packet {
+        constructor(type, isAck = false, seq = 0) {
+            this.x = isAck ? server.x : client.x + client.size;
+            this.y = height / 2;
+            this.type = type; // 'SYN', 'SYN-ACK', 'ACK', 'DATA'
+            this.isAck = isAck; // Direction: false = Client->Server, true = Server->Client
+            this.seq = seq;
+            this.speed = protocol === 'UDP' ? 350 : 200; // UDP is faster
+            this.color = this.getColor();
+            this.width = 20;
+            this.height = 20;
+            this.dead = false;
+            this.isLost = false; // Marked for deletion due to packet loss
+            this.checkedForLoss = false; // Ensure we only roll dice once
+        }
+
+        getColor() {
+            if (this.type.includes('ACK')) return '#22c55e';
+            if (this.type === 'SYN') return '#fbbf24';
+            if (protocol === 'TCP') return '#3b82f6';
+            return '#f97316';
+        }
+
+        update(dt) {
+            // Movement
+            const dir = this.isAck ? -1 : 1;
+            this.x += this.speed * dir * dt;
+
+            // Packet Loss Simulation (Check exactly once when crossing middle)
+            if (!this.isLost && !this.dead && !this.checkedForLoss) {
+                const midPoint = width / 2;
+                const margin = 10;
+                // Check if crossing middle
+                if ((this.x > midPoint - margin && this.x < midPoint + margin)) {
+                    this.checkedForLoss = true; // Flag to prevent multi-frame checks
+                    // Random chance to die
+                    if (Math.random() * 100 < lossChance) {
+                        this.destroy();
+                    }
+                }
+            }
+
+            // Arrival Checks
+            if (!this.isAck && this.x >= server.x - this.width) {
+                this.dead = true;
+                onServerReceive(this);
+            } else if (this.isAck && this.x <= client.x + client.size) {
+                this.dead = true;
+                onClientReceive(this);
+            }
+        }
+
+        destroy() {
+            this.dead = true;
+            this.isLost = true;
+            createExplosion(this.x, this.y, this.color);
+            log(`Packet lost in transit! (${this.type} ${this.seq || ''})`, 'error');
+            
+            // Handle TCP Retransmission Logic
+            if (protocol === 'TCP') {
+                // Scenario 1: DATA Packet sent by Client is lost
+                if (!this.isAck && this.type === 'DATA') {
+                    handleTcpLoss(this.seq);
+                }
+                // Scenario 2: ACK Packet sent by Server is lost 
+                // (Client times out waiting for ACK, so it resends the original Data)
+                else if (this.isAck && this.type === 'ACK') {
+                    log(`Simulating Timeout: ACK for Packet ${this.seq} lost.`, 'info');
+                    handleTcpLoss(this.seq);
+                }
+                // Scenario 3: SYN Packet lost
+                else if (!this.isAck && this.type === 'SYN') {
+                    setTimeout(() => {
+                        if(!isRunning) return;
+                        log("Client: SYN lost / Timeout. Retrying...", 'tcp');
+                        packets.push(new Packet('SYN', false));
+                    }, 1500);
+                }
+                // Scenario 4: SYN-ACK Packet lost
+                // (Client never gets SYN-ACK, eventually times out and resends SYN)
+                else if (this.isAck && this.type === 'SYN-ACK') {
+                    setTimeout(() => {
+                        if(!isRunning) return;
+                        log("Client: SYN-ACK lost / Timeout. Retrying SYN...", 'tcp');
+                        packets.push(new Packet('SYN', false));
+                    }, 1500);
+                }
+            }
+        }
+
+        draw(ctx) {
+            ctx.fillStyle = this.color;
+            // Draw body
+            ctx.fillRect(this.x, this.y - 10, this.width, this.height);
+            
+            // Draw Text
+            ctx.fillStyle = '#fff';
+            ctx.font = '10px Arial';
+            ctx.textAlign = 'center';
+            let label = this.type === 'DATA' ? this.seq : this.type;
+            if(this.type === 'DATA' && protocol === 'UDP') label = '';
+            ctx.fillText(label, this.x + 10, this.y + 4);
+        }
+    }
+
+    class Particle {
+        constructor(x, y, color) {
+            this.x = x;
+            this.y = y;
+            this.vx = (Math.random() - 0.5) * 100;
+            this.vy = (Math.random() - 0.5) * 100;
+            this.life = 1.0;
+            this.color = color;
+        }
+        update(dt) {
+            this.x += this.vx * dt;
+            this.y += this.vy * dt;
+            this.life -= 2 * dt;
+        }
+        draw(ctx) {
+            ctx.globalAlpha = Math.max(0, this.life);
+            ctx.fillStyle = this.color;
+            ctx.beginPath();
+            ctx.arc(this.x, this.y, 3, 0, Math.PI*2);
+            ctx.fill();
+            ctx.globalAlpha = 1.0;
+        }
+    }
+
+    // --- Logic Hooks ---
+
+    function onServerReceive(packet) {
+        if (protocol === 'TCP') {
+            if (packet.type === 'SYN') {
+                log("Server: Received SYN. Sending SYN-ACK.", 'tcp');
+                setTimeout(() => packets.push(new Packet('SYN-ACK', true)), 200);
+            } else if (packet.type === 'DATA') {
+                log(`Server: Received Packet ${packet.seq}. Sending ACK.`, 'tcp');
+                setTimeout(() => packets.push(new Packet('ACK', true, packet.seq)), 200);
+            }
+        } else if (protocol === 'UDP') {
+            // UDP just receives, maybe logs, no ACKs
+            // To prevent spamming logs in UDP mode, only log occasionally or update a counter
+            // But for this demo, we'll log simplified
+             log("Server: Received UDP Datagram.", 'udp');
+        }
+    }
+
+    function onClientReceive(packet) {
+        if (protocol === 'TCP') {
+            if (packet.type === 'SYN-ACK') {
+                log("Client: Received SYN-ACK. Connection ESTABLISHED.", 'success');
+                tcpState = 'ESTABLISHED';
+                // Send final handshake ACK
+                packets.push(new Packet('ACK', false));
+                // Start sending data
+                setTimeout(sendNextTcpPacket, 800);
+            } else if (packet.type === 'ACK') {
+                if (tcpState === 'ESTABLISHED') {
+                    log(`Client: Received ACK for Packet ${packet.seq}.`, 'success');
+                    tcpPacketsAcked++;
+                    if (tcpPacketsAcked === tcpSeq && tcpPacketsSent < tcpDataPacketsToSend) {
+                        sendNextTcpPacket();
+                    } else if (tcpPacketsAcked === tcpDataPacketsToSend) {
+                        log("Client: All data acknowledged. Closing connection.", 'info');
+                        finishTcp();
+                    }
+                }
+            }
+        }
+    }
+
+    // --- TCP Specifics ---
+
+    function startTCP() {
+        resetSim();
+        isRunning = true;
+        protocol = 'TCP';
+        log("--- Starting TCP Session ---", 'info');
+        log("Client: Initializing 3-Way Handshake...", 'tcp');
+        
+        tcpState = 'SYN_SENT';
+        tcpSeq = 0;
+        tcpPacketsSent = 0;
+        tcpPacketsAcked = 0;
+        tcpDataPacketsToSend = 5;
+
+        // Send SYN
+        packets.push(new Packet('SYN', false));
+        
+        document.getElementById('startTcpBtn').disabled = true;
+        document.getElementById('startUdpBtn').disabled = true;
+    }
+
+    function sendNextTcpPacket() {
+        if (!isRunning) return;
+        tcpSeq++;
+        tcpPacketsSent++;
+        log(`Client: Sending Packet ${tcpSeq}...`, 'tcp');
+        packets.push(new Packet('DATA', false, tcpSeq));
+    }
+
+    function handleTcpLoss(seqLost) {
+        if (!isRunning) return;
+        log(`TCP Reliability: Detected loss of Packet ${seqLost}. Retransmitting...`, 'info');
+        tcpRetrying = true;
+        
+        // Simulate timeout and retransmit
+        setTimeout(() => {
+            if (!isRunning) return;
+            log(`Client: Retransmitting Packet ${seqLost}`, 'tcp');
+            packets.push(new Packet('DATA', false, seqLost));
+            tcpRetrying = false;
+        }, 1500);
+    }
+
+    function finishTcp() {
+        setTimeout(() => {
+            log("Session Complete.", 'success');
+            isRunning = false;
+            document.getElementById('startTcpBtn').disabled = false;
+            document.getElementById('startUdpBtn').disabled = false;
+        }, 1000);
+    }
+
+    // --- UDP Specifics ---
+
+    function startUDP() {
+        resetSim();
+        isRunning = true;
+        protocol = 'UDP';
+        log("--- Starting UDP Stream ---", 'info');
+        
+        let count = 0;
+        const total = 20;
+        
+        document.getElementById('startTcpBtn').disabled = true;
+        document.getElementById('startUdpBtn').disabled = true;
+
+        udpInterval = setInterval(() => {
+            if (!isRunning) { clearInterval(udpInterval); return; }
+            
+            packets.push(new Packet('DATA', false));
+            count++;
+            
+            if (count % 5 === 0) {
+                log(`Client: Burst sent (${count}/${total})`, 'udp');
+            }
+
+            if (count >= total) {
+                clearInterval(udpInterval);
+                setTimeout(() => {
+                    log("Client: Finished sending stream.", 'info');
+                    isRunning = false;
+                    document.getElementById('startTcpBtn').disabled = false;
+                    document.getElementById('startUdpBtn').disabled = false;
+                }, 2000);
+            }
+        }, 150); // Fast fire rate
+    }
+
+    // --- Utilities ---
+
+    function resetSim() {
+        isRunning = false;
+        packets = [];
+        particles = [];
+        protocol = null;
+        tcpState = 'CLOSED';
+        clearInterval(udpInterval);
+        if (tcpTimer) clearTimeout(tcpTimer);
+        
+        document.getElementById('startTcpBtn').disabled = false;
+        document.getElementById('startUdpBtn').disabled = false;
+        document.getElementById('logs').innerHTML = '';
+        log("Simulation Ready.", 'info');
+    }
+
+    function updateLoss(val) {
+        lossChance = parseInt(val);
+        document.getElementById('lossVal').innerText = lossChance;
+    }
+
+    function createExplosion(x, y, color) {
+        for(let i=0; i<8; i++) {
+            particles.push(new Particle(x, y, color));
+        }
+    }
+
+    function log(msg, type) {
+        const logContainer = document.getElementById('logs');
+        const entry = document.createElement('div');
+        entry.className = `log-entry log-${type}`;
+        
+        const time = new Date().toLocaleTimeString().split(' ')[0];
+        entry.innerText = `[${time}] ${msg}`;
+        
+        logContainer.appendChild(entry);
+        logContainer.scrollTop = logContainer.scrollHeight;
+    }
+
+    // --- Main Loop ---
+
+    function drawNode(ctx, node, color) {
+        ctx.fillStyle = '#334155';
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 3;
+        
+        // Draw box
+        const x = node.x === 0 ? 50 : node.x - 50; // Offset for centering
+        const y = node.y - 30;
+        
+        ctx.beginPath();
+        ctx.roundRect(x, y, 60, 60, 8);
+        ctx.fill();
+        ctx.stroke();
+
+        // Draw Label
+        ctx.fillStyle = '#94a3b8';
+        ctx.font = 'bold 12px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(node.label, x + 30, y - 10);
+        
+        // Draw Icon (simple lines)
+        ctx.fillStyle = color;
+        ctx.fillRect(x + 15, y + 20, 30, 20);
+    }
+
+    function drawConnectionLine(ctx) {
+        ctx.strokeStyle = '#334155';
+        ctx.lineWidth = 2;
+        ctx.setLineDash([10, 10]);
+        ctx.beginPath();
+        ctx.moveTo(client.x + 40, client.y); // Adjusted based on node draw logic
+        ctx.lineTo(server.x - 20, server.y);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        // Draw Danger Zone if loss > 0
+        if (lossChance > 0) {
+            ctx.fillStyle = 'rgba(239, 68, 68, 0.1)';
+            ctx.fillRect(width/2 - 20, 0, 40, height);
+            
+            ctx.fillStyle = 'rgba(239, 68, 68, 0.5)';
+            ctx.font = '10px Arial';
+            ctx.fillText("PACKET LOSS ZONE", width/2, height - 10);
+        }
+    }
+
+    function loop(timestamp) {
+        const dt = (timestamp - lastTime) / 1000;
+        lastTime = timestamp;
+
+        // Clear
+        ctx.fillStyle = '#0f172a'; // Match body bg for gradient effect
+        ctx.clearRect(0, 0, width, height);
+
+        // Background Gradient
+        const grad = ctx.createRadialGradient(width/2, height/2, 100, width/2, height/2, width);
+        grad.addColorStop(0, '#1e293b');
+        grad.addColorStop(1, '#0f172a');
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, 0, width, height);
+
+        drawConnectionLine(ctx);
+
+        // Draw Nodes
+        drawNode(ctx, client, '#64748b');
+        drawNode(ctx, server, '#64748b');
+
+        // Update & Draw Packets
+        for (let i = packets.length - 1; i >= 0; i--) {
+            packets[i].update(dt);
+            packets[i].draw(ctx);
+            if (packets[i].dead) {
+                packets.splice(i, 1);
+            }
+        }
+
+        // Update & Draw Particles
+        for (let i = particles.length - 1; i >= 0; i--) {
+            particles[i].update(dt);
+            particles[i].draw(ctx);
+            if (particles[i].life <= 0) {
+                particles.splice(i, 1);
+            }
+        }
+
+        requestAnimationFrame(loop);
+    }
+
+    // Start
+    log("System Initialized. Select a protocol to begin.", 'info');
+    requestAnimationFrame(loop);
+
+</script>
+
+</body>
+</html>
